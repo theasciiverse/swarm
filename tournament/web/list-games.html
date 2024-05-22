@@ -1,7 +1,7 @@
 <!doctype html>
 <html>
   <head>
-    <title>Swarm tournament games</title>
+    <title>Uploaded scenarios</title>
 
     <link rel="stylesheet" href="style/tablesort.css"/>
     <link rel="stylesheet" href="style/list-games.css"/>
@@ -16,20 +16,27 @@
     </style>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/tablesort/5.1.0/tablesort.min.js"></script>
+    <script src="script/common.js"></script>
     <script src="script/list-games.js"></script>
 
     <script>
       window.onload=()=>{
+
+        getLoginStatus();
+
         const tableElement = document.querySelector("table");
         doFetch(tableElement);
       }
     </script>
   </head>
   <body>
+    <div id="login-info-container"></div>
+    <h1>Uploaded scenarios</h1>
     <table id="my-table">
         <thead>
           <tr data-sort-method="none">
-            <th>Filename</th>
+            <th>Title</th>
+            <th>File</th>
             <th>Uploader</th>
             <th>Soln. submissions</th>
             <th>Swarm version</th>
@@ -42,5 +49,12 @@
       <div id="spinner-container">
         <span id="spinner" class="lds-dual-ring"></span>
       </div>
+
+      <br/>
+      <h2>Upload new scenario</h2>
+      <form action="/api/private/upload/scenario" method="POST" enctype="multipart/form-data">
+        <input type="file" name="scenario-filename"/>
+        <input type="submit"/>
+      </form>
   </body>
 </html>

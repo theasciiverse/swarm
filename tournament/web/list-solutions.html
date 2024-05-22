@@ -1,0 +1,72 @@
+<!doctype html>
+<html>
+  <head>
+    <title>Solution submissions</title>
+
+    <link rel="stylesheet" href="style/tablesort.css"/>
+    <link rel="stylesheet" href="style/list-games.css"/>
+    <link rel="stylesheet" href="style/spinner.css"/>
+
+    <style type="text/css">
+      #spinner-container {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+      }
+    </style>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tablesort/5.1.0/tablesort.min.js"></script>
+    <script src="script/common.js"></script>
+    <script src="script/list-solutions.js"></script>
+
+    <script>
+      window.onload=()=>{
+
+        getLoginStatus();
+
+        const queryString = window.location.search;
+        const urlParams = new URLSearchParams(queryString);
+        const scenarioHash = urlParams.get('scenario')
+        document.getElementById('scenario-field').value=scenarioHash;
+
+        const tableElement = document.querySelector("table");
+        doFetch(tableElement, scenarioHash);
+      }
+    </script>
+  </head>
+  <body>
+    <div id="login-info-container"></div>
+    [<a href="/list-games.html">Back to scenarios</a>]
+    <h1 id="main-header">Scenario info</h1>
+    
+    <h2>Solution submissions</h2>
+    <table id="my-table">
+        <thead>
+          <tr data-sort-method="none">
+            <th>Uploader</th>
+            <th>Submitted at</th>
+            <th>Seed</th>
+            <th>Source length</th>
+            <th>AST Size</th>
+            <th>Ticks elapsed</th>
+            <th>Evaluation time</th>
+            <th>Download</th>
+          </tr>
+        </thead>
+        <tbody id="my-table-body">
+        </tbody>
+      </table>
+
+      <div id="spinner-container">
+        <span id="spinner" class="lds-dual-ring"></span>
+      </div>
+
+      <br/>
+      <h2>Upload solution</h2>
+      <form action="/api/private/upload/solution" method="POST" enctype="multipart/form-data">
+        <input type="file" name="solution-filename"/>
+        <input type="hidden" name="scenario" id="scenario-field"/>
+        <input type="submit"/>
+      </form>
+  </body>
+</html>
