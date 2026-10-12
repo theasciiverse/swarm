@@ -1,0 +1,124 @@
+# Builds Swarm for the Asciiverse catalog: one archive per target, named
+# <id>-<target>.tar.gz (Linux, macOS) or .zip (Windows), plus a SHA256SUMS
+# file, attached to a GitHub release (hub/catalog/SCHEMA.md,
+# release.source = "github"). Runs on a pushed v* tag, or by hand for an
+# existing tag. (Upstream's own haskell-release.yml only reacts to
+# x.y.z.w tags, so the two never run for the same tag.)
+#
+# The build follows upstream's haskell-release.yml (GHC 9.8.2, cabal
+# 3.12.1.0). Each archive holds the swarm binary with the game's data/
+# folder beside it, which the binary finds there (see the "data folder
+# next to the executable" commit). Linux builds link glibc, gmp, zlib and
+# ncurses' tinfo dynamically, as upstream's do, on Ubuntu 22.04 so they
+# run on glibc 2.35 and newer.
+
+name: asciiverse-release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "existing tag to build and release"
+        required: true
+
+env:
+  ID: swarm
+  TAG: ${{ inputs.tag || github.ref_name }}
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { target: x86_64-unknown-linux-gnu, os: ubuntu-22.04 }
+          - { target: aarch64-unknown-linux-gnu, os: ubuntu-22.04-arm }
+          - { target: x86_64-apple-darwin, os: macos-15-intel }
+          - { target: aarch64-apple-darwin, os: macos-14 }
+          - { target: x86_64-pc-windows-gnu, os: windows-latest }
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.TAG }}
+
+      - uses: haskell-actions/setup@v2
+        id: setup
+        with:
+          ghc-version: "9.8.2"
+          cabal-version: "3.12.1.0"
+
+      - name: Freeze
+        run: cabal freeze
+
+      - uses: actions/cache@v4
+        with:
+          key: ${{ matrix.target }}-9.8.2-${{ hashFiles('cabal.project.freeze') }}
+          path: ${{ steps.setup.outputs.cabal-store }}
+          restore-keys: |
+            ${{ matrix.target }}-9.8.2-
+
+      - name: Build
+        shell: bash
+        run: |
+          cabal v2-build --disable-tests --disable-benchmarks --dependencies-only -j2 exe:swarm
+          mkdir -p stage
+          cabal v2-install exe:swarm --install-method=copy --overwrite-policy=always \
+            --enable-executable-stripping --installdir=stage
+          cp -r data stage/data
+          cp LICENSE README.md stage/
+          ls -la stage
+
+      - name: Smoke test
+        shell: bash
+        run: |
+          ./stage/swarm version || true
+          # start a scenario in a pseudo-terminal, from another directory;
+          # fails if the binary cannot find data/ beside it (no pty on Windows)
+          if [ "$RUNNER_OS" != Windows ]; then python3 asciiverse/smoke.py stage/swarm; fi
+
+      - name: Package (Linux, macOS)
+        if: runner.os != 'Windows'
+        run: |
+          # the binary sits at the top of the archive, where av looks for it
+          mkdir -p dist
+          tar -czf "dist/$ID-${{ matrix.target }}.tar.gz" -C stage .
+
+      - name: Package (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force dist | Out-Null
+          Compress-Archive -Path stage\* -DestinationPath "dist\$env:ID-${{ matrix.target }}.zip"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.target }}
+          path: dist/*
+
+  release:
+    needs: build
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Checksums
+        working-directory: dist
+        run: sha256sum * > SHA256SUMS && cat SHA256SUMS
+
+      - name: Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release view "$TAG" -R "$GITHUB_REPOSITORY" >/dev/null 2>&1 \
+            || gh release create "$TAG" -R "$GITHUB_REPOSITORY" --title "Swarm $TAG" \
+                 --notes "Swarm $TAG from github.com/swarm-game/swarm, built for the Asciiverse catalog."
+          gh release upload "$TAG" dist/* -R "$GITHUB_REPOSITORY" --clobber
