@@ -56,7 +56,8 @@ jobs:
       - name: Freeze
         run: cabal freeze
 
-      - uses: actions/cache@v4
+      - uses: actions/cache/restore@v4
+        id: cache
         with:
           key: ${{ matrix.target }}-9.8.2-${{ hashFiles('cabal.project.freeze') }}
           path: ${{ steps.setup.outputs.cabal-store }}
@@ -73,6 +74,14 @@ jobs:
           cp -r data stage/data
           cp LICENSE README.md stage/
           ls -la stage
+
+      # saved straight after the build, so a later failing step does not
+      # throw away an hour of compiled dependencies
+      - uses: actions/cache/save@v4
+        if: always() && steps.cache.outputs.cache-hit != 'true'
+        with:
+          key: ${{ matrix.target }}-9.8.2-${{ hashFiles('cabal.project.freeze') }}
+          path: ${{ steps.setup.outputs.cabal-store }}
 
       - name: Smoke test
         shell: bash
