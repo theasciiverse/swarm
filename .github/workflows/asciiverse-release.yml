@@ -42,6 +42,9 @@ jobs:
           - { target: aarch64-apple-darwin, os: macos-14 }
           - { target: x86_64-pc-windows-gnu, os: windows-latest }
     runs-on: ${{ matrix.os }}
+    env:
+      # otherwise the macOS binaries need the runner's own macOS (14 or 15)
+      MACOSX_DEPLOYMENT_TARGET: "11.0"
     steps:
       - uses: actions/checkout@v4
         with:
@@ -71,6 +74,8 @@ jobs:
           mkdir -p stage
           cabal v2-install exe:swarm --install-method=copy --overwrite-policy=always \
             --enable-executable-stripping --installdir=stage
+          # the package's other executables are developer tools
+          rm -f stage/swarm-docs* stage/swarm-host-tournament* stage/swarm-scene*
           cp -r data stage/data
           cp LICENSE README.md stage/
           ls -la stage
