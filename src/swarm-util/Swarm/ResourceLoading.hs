@@ -47,6 +47,7 @@ import System.Directory (
   getXdgDirectory,
   listDirectory,
  )
+import System.Environment (getExecutablePath)
 import System.FilePath
 import Witch
 
@@ -65,12 +66,14 @@ guardDir dir = do
 
 -- | Get subdirectory from swarm data directory.
 --
--- This will first look in Cabal generated path and then
--- try a @data@ directory in 'XdgData' path.
+-- This will first look in Cabal generated path, then in a @data@
+-- directory next to the executable, and then try a @data@ directory
+-- in 'XdgData' path.
 --
 -- The idea is that when installing with Cabal/Stack the first
--- is preferred, but when the players install a binary they
--- need to extract the `data` archive to the XDG directory.
+-- is preferred; a binary unpacked from an archive together with its
+-- @data@ directory (a portable install) uses the second; otherwise
+-- players extract the `data` archive to the XDG directory.
 getDataDirSafe ::
   (Has (Throw SystemFailure) sig m, Has (Lift IO) sig m) =>
   AssetData ->
@@ -78,6 +81,7 @@ getDataDirSafe ::
   m FilePath
 getDataDirSafe asset p = do
   tryDir getDataDir
+    ??? tryDir ((</> "data") . takeDirectory <$> getExecutablePath)
     ??? tryDir (getSwarmXdgDataSubdir False "data")
     ??? throwError (AssetNotLoaded (Data asset) p $ DoesNotExist Directory)
  where
